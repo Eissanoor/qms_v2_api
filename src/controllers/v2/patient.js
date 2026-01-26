@@ -61,114 +61,127 @@ class PatientControllerV2 {
         return res.status(200).json(response.data);
       }
 
-      // Use Prisma transaction to ensure data consistency
-      const result = await prisma.$transaction(async (tx) => {
-        // Ensure state is 0 (waiting) for new patients
-        if (value.state !== undefined && value.state !== 0) {
-          throw new MyError("New patients must have state=0 (waiting)", 400);
-        }
+      // First, use a Prisma transaction for all DB work (no heavy PDF generation inside)
+      const { patient, ticketNumber, deptCode, waitingCount } =
+        await prisma.$transaction(async (tx) => {
+          // Ensure state is 0 (waiting) for new patients
+          if (value.state !== undefined && value.state !== 0) {
+            throw new MyError("New patients must have state=0 (waiting)", 400);
+          }
 
-        // assign default department (TRIAGE) to the patient
-        const department = await tx.tblDepartment.findFirst({
-          where: {
-            deptname: {
-              contains: "TRIAGE",
+          // assign default department (TRIAGE) to the patient
+          const department = await tx.tblDepartment.findFirst({
+            where: {
+              deptname: {
+                contains: "TRIAGE",
+              },
             },
-          },
-        });
+          });
 
-        // waiting count
-        const waitingCount = await tx.patient.count({
-          where: { state: 0, departmentId: department?.tblDepartmentID },
-        });
+          // waiting count
+          const waitingCountTx = await tx.patient.count({
+            where: { state: 0, departmentId: department?.tblDepartmentID },
+          });
 
-        // Get current counter
-        let currentCounter = await tx.patient.count({
-          where: {
-            registrationDate: {
-              gte: new Date(new Date().setHours(0, 0, 0, 0)),
-              lte: new Date(),
+          // Get current counter
+          let currentCounter = await tx.patient.count({
+            where: {
+              registrationDate: {
+                gte: new Date(new Date().setHours(0, 0, 0, 0)),
+                lte: new Date(),
+              },
+              // departmentId: department?.tblDepartmentID,
+              state: {
+                in: [0, 1, 2, 3], // 0: waiting, 1: in treatment, 2: discharged, 3: voided
+              },
             },
-            // departmentId: department?.tblDepartmentID,
-            state: {
-              in: [0, 1, 2, 3], // 0: waiting, 1: in treatment, 2: discharged, 3: voided
+          });
+
+          let counter = (currentCounter || 0) + 1;
+
+          // check if there is already a patient with the same ticket number
+          const existingPatientWithSameTicket = await tx.patient.findMany({
+            where: {
+              ticketNumber: {
+                gte: counter,
+              },
+              // departmentId: department?.tblDepartmentID,
+              registrationDate: {
+                gte: new Date(new Date().setHours(0, 0, 0, 0)),
+                lte: new Date(),
+              },
             },
-          },
-        });
-
-        let counter = (currentCounter || 0) + 1;
-
-        // check if there is already a patient with the same ticket number
-        const existingPatientWithSameTicket = await prisma.patient.findMany({
-          where: {
-            ticketNumber: {
-              gte: counter,
+            orderBy: {
+              registrationDate: "desc",
             },
-            // departmentId: department?.tblDepartmentID,
-            registrationDate: {
-              gte: new Date(new Date().setHours(0, 0, 0, 0)),
-              lte: new Date(),
+            take: 1,
+          });
+
+          if (existingPatientWithSameTicket.length > 0) {
+            counter = existingPatientWithSameTicket[0].ticketNumber + 1;
+          }
+
+          const deptCodeTx = department?.deptcode || "T"; // Get department code with fallback
+
+          // Create patient record (without ticket/pdf yet)
+          const createdPatient = await tx.patient.create({
+            data: {
+              ...value,
+              userId,
+              ticketNumber: Number(counter),
+              // connect with department
+              departmentId: department ? department.tblDepartmentID : null,
             },
-          },
-          orderBy: {
-            registrationDate: "desc",
-          },
-          take: 1,
+          });
+
+          // create journey and make old active journey inactive
+          await tx.journey.updateMany({
+            where: { patientId: createdPatient.id, isActive: true },
+            data: { isActive: false },
+          });
+
+          await tx.journey.create({
+            data: {
+              patientId: createdPatient.id,
+              isActive: true,
+            },
+          });
+
+          return {
+            patient: createdPatient,
+            ticketNumber: counter,
+            deptCode: deptCodeTx,
+            waitingCount: waitingCountTx,
+          };
         });
 
-        if (existingPatientWithSameTicket.length > 0) {
-          counter = existingPatientWithSameTicket[0].ticketNumber + 1;
-        }
+      // Now generate the PDF ticket outside the transaction to avoid transaction timeout (P2028)
+      const ticket = `${deptCode}${ticketNumber}`;
+      const pdfData = {
+        patientName: value.name,
+        ticket,
+        deptcode: deptCode,
+        counter: ticketNumber,
+        issueDate: new Date(),
+        cheifComplaint: value.cheifComplaint,
+        waitingCount,
+      };
 
-        const deptCode = department?.deptcode || "T"; // Get department code with fallback
-        const ticket = `${deptCode}${counter}`;
+      const { relativePath, barcodeBase64 } =
+        await PDFGenerator.generateTicket(pdfData);
 
-        // Generate PDF ticket
-        const pdfData = {
-          patientName: value.name,
-          ticket: ticket,
-          deptcode: deptCode, // Use the deptCode we extracted from department
-          counter: counter,
-          issueDate: new Date(),
-          cheifComplaint: value.cheifComplaint,
-          waitingCount: waitingCount,
-        };
-
-        const { relativePath, barcodeBase64 } =
-          await PDFGenerator.generateTicket(pdfData);
-
-        // Create patient record
-        const patient = await tx.patient.create({
-          data: {
-            ...value,
-            userId,
-            ticket: relativePath,
-            barcode: barcodeBase64,
-            ticketNumber: Number(counter),
-            // connect with department
-            departmentId: department ? department.tblDepartmentID : null,
-          },
-        });
-
-        // create journey and make old active journey inactive
-        await tx.journey.updateMany({
-          where: { patientId: patient.id, isActive: true },
-          data: { isActive: false },
-        });
-
-        const journey = await tx.journey.create({
-          data: {
-            patientId: patient.id,
-            isActive: true,
-          },
-        });
-
-        return patient;
+      // Update patient with generated ticket and barcode
+      const updatedPatient = await prisma.patient.update({
+        where: { id: patient.id },
+        data: {
+          ticket: relativePath,
+          barcode: barcodeBase64,
+        },
       });
 
-      res
-        .status(200)
-        .json(response(200, true, "Patient created successfully", result));
+      res.status(200).json(
+        response(200, true, "Patient created successfully", updatedPatient)
+      );
     } catch (error) {
       next(error);
     }

@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 
 import config from "./config/config.js";
 import swaggerSpec from "./config/swagger.js";
-import cors from "./middlewares/cors.js";
+import cors from "cors";
 import { errorHandler, notFoundHandler } from "./middlewares/error.js";
 import routes from "./routes.js";
 import routesV2 from "./routesV2.js";
@@ -17,8 +17,15 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 dotenv.config();
-
-app.use(cors);
+// CORS: allow all origins/ports
+app.use(
+  cors({
+    origin: true, // reflect request origin, effectively allowing all
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
