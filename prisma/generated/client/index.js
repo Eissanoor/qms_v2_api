@@ -237,7 +237,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "C:\\Users\\Administrator\\Desktop\\qms\\qms_api_nartec\\prisma\\generated\\client",
+      "value": "D:\\DESKTOP\\SUDIA\\qmsv2\\qmsv2apiOwn\\qms_api_nartec\\prisma\\generated\\client",
       "fromEnvVar": null
     },
     "config": {
@@ -253,7 +253,7 @@ const config = {
     "previewFeatures": [
       "prismaSchemaFolder"
     ],
-    "sourceFilePath": "C:\\Users\\Administrator\\Desktop\\qms\\qms_api_nartec\\prisma\\schema\\schema.prisma",
+    "sourceFilePath": "D:\\DESKTOP\\SUDIA\\qmsv2\\qmsv2apiOwn\\qms_api_nartec\\prisma\\schema\\schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {

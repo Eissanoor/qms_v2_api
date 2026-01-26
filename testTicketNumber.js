@@ -1,5 +1,5 @@
 // test-patient-query.js
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "./prisma/generated/client/index.js";
 import dotenv from "dotenv";
 
 // Load environment variables
