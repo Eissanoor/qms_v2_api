@@ -21,7 +21,8 @@ dotenv.config();
 app.use(
   cors({
     origin: true, // reflect request origin, effectively allowing all
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    // include PATCH to satisfy preflight for toggle-call endpoint
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
