@@ -392,13 +392,17 @@ class PatientControllerV2 {
         });
       }
 
-      // assign department to patient
-      await assignDepartmentQueue.add("assign-department", {
-        id,
-        value,
-        patient,
-        department,
-      });
+      // assign department to patient via background job (do not block HTTP response)
+      assignDepartmentQueue
+        .add("assign-department", {
+          id,
+          value,
+          patient,
+          department,
+        })
+        .catch((err) => {
+          console.error("Failed to enqueue assign-department job:", err);
+        });
 
       res
         .status(200)
