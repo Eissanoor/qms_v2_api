@@ -706,6 +706,17 @@ class PatientController {
         throw new MyError("Department not found", 404);
       }
 
+      const assignDeptTime = new Date();
+
+      // Update patient immediately so department shows up right away (fixes issue when workers aren't running)
+      await prisma.patient.update({
+        where: { id },
+        data: {
+          departmentId: value.departmentId,
+          assignDeptTime,
+        },
+      });
+
       //   // Get latest patient count for ticket number
       //   const ticketNumber = patient.ticketNumber;
 

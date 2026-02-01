@@ -392,7 +392,18 @@ class PatientControllerV2 {
         });
       }
 
-      // assign department to patient via background job (do not block HTTP response)
+      const assignDeptTime = new Date();
+
+      // Update patient immediately so department shows up right away (fixes issue when workers aren't running)
+      await prisma.patient.update({
+        where: { id },
+        data: {
+          departmentId: value.departmentId,
+          assignDeptTime,
+        },
+      });
+
+      // assign department to patient via background job (PDF generation, ticket update - non-blocking)
       assignDepartmentQueue
         .add("assign-department", {
           id,
