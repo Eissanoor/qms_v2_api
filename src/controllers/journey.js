@@ -74,6 +74,7 @@ class JourneyController {
               id: true,
               name: true,
               mrnNumber: true,
+              remarks: true,
             },
           },
         },
@@ -285,6 +286,7 @@ class JourneyController {
             select: {
               name: true,
               mrnNumber: true,
+              remarks: true,
             },
           },
         },
@@ -325,6 +327,7 @@ class JourneyController {
             select: {
               name: true,
               mrnNumber: true,
+              remarks: true,
             },
           },
         },
