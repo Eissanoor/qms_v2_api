@@ -1,6 +1,5 @@
 import path from "path";
 import xlsx from "xlsx";
-import { assignDepartmentQueue } from "../config/queue.js";
 import {
   assignBedSchema,
   assignDepartmentSchema,
@@ -15,6 +14,7 @@ import {
   searchPatientSchema,
   updatePatientSchema,
 } from "../schemas/patient.schema.js";
+import { generateDepartmentTicket } from "../services/assignDepartment.js";
 import socketService from "../services/socket.js";
 import MyError from "../utils/error.js";
 import { deleteFile, ensureDir, ensureRequiredDirs } from "../utils/file.js";
@@ -29,9 +29,6 @@ class PatientController {
       if (error) {
         throw new MyError(error.details[0].message, 400);
       }
-
-      //   // Add patient to queue
-      //   await patientQueue.add("add-patient", { userId: req.user.id, value });
 
       // Ensure all required directories exist before processing
       await ensureRequiredDirs();
@@ -233,13 +230,6 @@ class PatientController {
           },
         },
       });
-
-      //   // Update ticket
-      //   await updateTicketQueue.add("update-ticket", {
-      //     id,
-      //     value,
-      //     patient,
-      //   });
 
       // waiting count
       const waitingCount = await prisma.patient.count({
@@ -563,9 +553,6 @@ class PatientController {
 
       const { call } = value;
 
-      // Assign job to queue
-      //   await patientCallQueue.add("toggle-patient-call", { id });
-
       const patient = await prisma.patient.findUnique({
         where: { id },
         include: {
@@ -708,7 +695,6 @@ class PatientController {
 
       const assignDeptTime = new Date();
 
-      // Update patient immediately so department shows up right away (fixes issue when workers aren't running)
       await prisma.patient.update({
         where: { id },
         data: {
@@ -717,67 +703,7 @@ class PatientController {
         },
       });
 
-      //   // Get latest patient count for ticket number
-      //   const ticketNumber = patient.ticketNumber;
-
-      //   // Generate barcode
-      //   const barcode = patient.barcode;
-
-      //   // waiting count
-      //   const waitingCount = await prisma.patient.count({
-      //     where: { state: 0 },
-      //   });
-
-      //   // Get current counter
-      //   let currentCounter = await prisma.patient.count({
-      //     // count all the patients for last day
-      //     where: {
-      //       createdAt: {
-      //         gte: new Date(new Date().setDate(new Date().getDate() - 1)),
-      //       },
-      //     },
-      //   });
-
-      //   // Generate department ticket
-      //   const ticketData = await PDFGenerator.generateDepartmentTicket({
-      //     ...patient,
-      //     department,
-      //     ticketNumber,
-      //     barcode,
-      //     vitalSigns: patient.vitalSigns[0],
-      //     waitingCount,
-      //     issueDate: new Date(),
-      //     counter: currentCounter,
-      //   });
-
-      //   // Delete old ticket if exists
-      //   if (patient.ticket) {
-      //     await deleteFile(patient.ticket);
-      //   }
-
-      //   // Update patient with new department and ticket
-      //   const updatedPatient = await prisma.patient.update({
-      //     where: { id },
-      //     data: {
-      //       departmentId: value.departmentId,
-      //       ticket: ticketData.relativePath,
-      //       ticketNumber,
-      //       barcode,
-      //     },
-      //     include: {
-      //       department: true,
-      //       vitalSigns: true,
-      //       user: {
-      //         select: {
-      //           name: true,
-      //           email: true,
-      //           deptcode: true,
-      //         },
-      //       },
-      //     },
-      //   });
-
-      await assignDepartmentQueue.add("assign-department", {
+      await generateDepartmentTicket({
         id,
         value,
         patient,

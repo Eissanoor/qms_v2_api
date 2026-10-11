@@ -32,8 +32,11 @@ pipeline {
                 script {
                     echo "Stopping PM2 process if running..."
                     def processStatus = bat(script: 'pm2 list', returnStdout: true).trim()
-                    if (processStatus.contains('qms') || processStatus.contains('qms-workers')) {
-                        bat 'pm2 stop qms qms-workers || exit 0'
+                    if (processStatus.contains('qms-workers')) {
+                        bat 'pm2 delete qms-workers || exit 0'
+                    }
+                    if (processStatus.contains('qms')) {
+                        bat 'pm2 stop qms || exit 0'
                     }
                 }
                 echo "Deleting node_modules folder on windows..."
@@ -44,7 +47,7 @@ pipeline {
                 echo "Generating Prisma files..."
                 bat 'npx prisma generate --schema="./prisma/schema"'
                 echo "Restarting PM2 process..."
-                bat 'pm2 restart qms qms-workers'
+                bat 'pm2 restart qms'
                 echo "Restarting PM2 process... Done"
                 echo "Saving PM2 process..."
                 bat 'pm2 save'

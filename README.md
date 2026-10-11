@@ -18,7 +18,6 @@ A robust Queue Management System API built with Node.js, Express, Prisma, and We
 
 - Node.js (v14 or higher)
 - SQL Server
-- Redis Server
 - npm or yarn
 
 ## Project Structure
@@ -61,11 +60,6 @@ JWT_ACCESS_SECRET="your-access-secret"
 JWT_REFRESH_SECRET="your-refresh-secret"
 JWT_ACCESS_EXPIRY="1d"
 JWT_REFRESH_EXPIRY="7d"
-
-# Redis Configuration
-REDIS_HOST="your-redis-host"
-REDIS_PORT=6379
-REDIS_PASSWORD="your-redis-password"
 
 # Super Admin
 SUPER_ADMIN_EMAIL="admin@qms.com"
@@ -123,7 +117,7 @@ The initial deployment pipeline:
    - Stops and deletes existing PM2 processes if running
    - Installs dependencies with `npm ci` for clean installation
    - Generates Prisma client files
-   - Creates new PM2 processes for the main app and workers
+   - Creates a new PM2 process for the main app
    - Saves the PM2 configuration
 
 ### Subsequent Deployments (Jenkinsfile)

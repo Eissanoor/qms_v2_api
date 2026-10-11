@@ -1,5 +1,4 @@
 import axios from "axios";
-import { assignDepartmentQueue } from "../../config/queue.js";
 import {
   assignDepartmentSchema,
   beginTimeSchema,
@@ -12,6 +11,7 @@ import {
   getPatientsByDepartmentSchema,
   updatePatientSchema,
 } from "../../schemas/patient.schema.js";
+import { generateDepartmentTicket } from "../../services/assignDepartment.js";
 import socketService from "../../services/socket.js";
 import MyError from "../../utils/error.js";
 import { ensureRequiredDirs } from "../../utils/file.js";
@@ -394,7 +394,6 @@ class PatientControllerV2 {
 
       const assignDeptTime = new Date();
 
-      // Update patient immediately so department shows up right away (fixes issue when workers aren't running)
       await prisma.patient.update({
         where: { id },
         data: {
@@ -403,17 +402,12 @@ class PatientControllerV2 {
         },
       });
 
-      // assign department to patient via background job (PDF generation, ticket update - non-blocking)
-      assignDepartmentQueue
-        .add("assign-department", {
-          id,
-          value,
-          patient,
-          department,
-        })
-        .catch((err) => {
-          console.error("Failed to enqueue assign-department job:", err);
-        });
+      await generateDepartmentTicket({
+        id,
+        value,
+        patient,
+        department,
+      });
 
       res
         .status(200)
