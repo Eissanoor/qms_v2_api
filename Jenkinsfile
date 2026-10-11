@@ -13,8 +13,8 @@ pipeline {
                     branches: [[name: '*/main']], 
                     extensions: [], 
                     userRemoteConfigs: [[
-                        credentialsId: 'Wasim-Jenkins-Credentials', 
-                        url: 'https://github.com/Wasim-Zaman/qms_api_nartec.git'
+                        credentialsId: 'eissa', 
+                        url: 'https://github.com/Eissanoor/qms_v2_api.git'
                     ]]
                 )
             }
@@ -32,9 +32,6 @@ pipeline {
                 script {
                     echo "Stopping PM2 process if running..."
                     def processStatus = bat(script: 'pm2 list', returnStdout: true).trim()
-                    if (processStatus.contains('qms-workers')) {
-                        bat 'pm2 delete qms-workers || exit 0'
-                    }
                     if (processStatus.contains('qms')) {
                         bat 'pm2 stop qms || exit 0'
                     }
