@@ -47,9 +47,10 @@ class PatientControllerV2 {
         // use axios to make a post request to re-register patient
         // send bearer token in the request
         const token = req.headers.Authorization || req.headers.authorization;
+        const internalBase = `http://127.0.0.1:${process.env.PORT || 9030}`;
 
         const response = await axios.post(
-          `${process.env.DOMAIN}/api/v2/patients/re-register/${existingPatient.id}`,
+          `${internalBase}/api/v2/patients/re-register/${existingPatient.id}`,
           value,
           {
             headers: {
