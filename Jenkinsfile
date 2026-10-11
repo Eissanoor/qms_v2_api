@@ -63,6 +63,13 @@ pipeline {
                 echo "Deleting node_modules folder on windows... Done"
                 echo "Installing dependencies for QMS..."
                 bat 'npm install'
+                echo "Installing Chrome for ticket PDFs..."
+                bat '''
+                    set PUPPETEER_EXECUTABLE_PATH=
+                    set PUPPETEER_SKIP_DOWNLOAD=
+                    set PUPPETEER_CACHE_DIR=C:\\puppeteer-chrome
+                    call npx puppeteer browsers install chrome
+                '''
                 echo "Generating Prisma files..."
                 bat 'npx prisma generate --schema="./prisma/schema/schema.prisma"'
                 echo "Restarting PM2 process..."

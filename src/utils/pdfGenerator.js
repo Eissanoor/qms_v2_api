@@ -1,6 +1,7 @@
 import bwipjs from "bwip-js";
 import ejs from "ejs";
 import fs from "fs-extra";
+import os from "os";
 import path, { dirname } from "path";
 import puppeteer from "puppeteer";
 import { fileURLToPath } from "url";
@@ -15,6 +16,60 @@ const DOMAIN = process.env.DOMAIN || "http://localhost:3000";
 const LOGO_URL = `${DOMAIN}${LOGO_PATH}`;
 
 class PDFGenerator {
+  // The server env can set PUPPETEER_EXECUTABLE_PATH to a docs placeholder
+  // such as win64-<ver>. That file is never installed, so ignore it and use
+  // a Chrome binary that actually exists.
+  static findChromeExecutable(root, depth = 0) {
+    if (!root || depth > 6 || !fs.existsSync(root)) return null;
+
+    let entries;
+    try {
+      entries = fs.readdirSync(root, { withFileTypes: true });
+    } catch {
+      return null;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(root, entry.name);
+      if (entry.isFile() && entry.name.toLowerCase() === "chrome.exe") {
+        return fullPath;
+      }
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const found = this.findChromeExecutable(
+        path.join(root, entry.name),
+        depth + 1
+      );
+      if (found) return found;
+    }
+
+    return null;
+  }
+
+  static resolveChromeExecutable() {
+    const configured = process.env.PUPPETEER_EXECUTABLE_PATH;
+    if (configured && fs.existsSync(configured)) return configured;
+
+    const roots = [
+      process.env.PUPPETEER_CACHE_DIR,
+      "C:\\puppeteer-chrome",
+      path.join(os.homedir(), ".cache", "puppeteer"),
+      "C:\\Program Files\\Google\\Chrome\\Application",
+      "C:\\Program Files (x86)\\Google\\Chrome\\Application",
+    ].filter(Boolean);
+
+    for (const root of roots) {
+      const found = this.findChromeExecutable(root);
+      if (found) return found;
+    }
+
+    throw new Error(
+      "Chrome was not found on this server. Install it with: npx puppeteer browsers install chrome"
+    );
+  }
+
   // Puppeteer otherwise calls mkdtemp in os.tmpdir(). On this Windows service
   // that path is the 8.3 name C:\Users\ADMINI~1\AppData\Local\Temp\1, and
   // Node fails it with EPERM. A long path under the app is writable.
@@ -22,9 +77,11 @@ class PDFGenerator {
     const profileRoot = path.join(process.cwd(), "uploads", "chrome-tmp");
     await fs.ensureDir(profileRoot);
     const userDataDir = await fs.mkdtemp(path.join(profileRoot, "profile-"));
+    const executablePath = this.resolveChromeExecutable();
 
     const browser = await puppeteer.launch({
       headless: true,
+      executablePath,
       userDataDir,
       args: [
         "--no-sandbox",
