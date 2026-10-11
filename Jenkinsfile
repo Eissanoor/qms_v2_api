@@ -1,19 +1,41 @@
 pipeline {
     agent any
 
+    // Default checkout runs before any stage and fails on Windows while PM2
+    // still has prisma/generated/client/query_engine-windows.dll.node loaded.
+    options {
+        skipDefaultCheckout()
+    }
+
     environment {
         ENV_FILE_PATH = "C:\\Program Files\\Jenkins\\jenkinsEnv\\qms-v2-backend"
         // ENV_FILE_PATH = "C:\\Users\\Administrator\\Desktop\\projects\\QMS_V2\\qms_api_nartec"
     }
 
     stages {
+        stage('Stop app before checkout') {
+            steps {
+                echo "Stopping qms so Git can replace the Prisma query engine DLL..."
+                bat '''
+                    pm2 stop qms || echo qms was not running
+                    ping 127.0.0.1 -n 4 > nul
+                    if exist "prisma\\generated\\client\\query_engine-windows.dll.node" del /f /q "prisma\\generated\\client\\query_engine-windows.dll.node"
+                    if exist "prisma\\generated\\client\\query_engine-windows.dll.node" (
+                        echo ERROR: query_engine-windows.dll.node is still locked. Stop the Node process using it, then rebuild.
+                        exit /b 1
+                    )
+                    if exist "prisma\\generated" rmdir /s /q "prisma\\generated"
+                '''
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout scmGit(
-                    branches: [[name: '*/main']], 
-                    extensions: [], 
+                    branches: [[name: '*/main']],
+                    extensions: [],
                     userRemoteConfigs: [[
-                        credentialsId: 'eissa', 
+                        credentialsId: 'eissa',
                         url: 'https://github.com/Eissanoor/qms_v2_api.git'
                     ]]
                 )
