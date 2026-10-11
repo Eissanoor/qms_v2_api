@@ -15,6 +15,27 @@ const DOMAIN = process.env.DOMAIN || "http://localhost:3000";
 const LOGO_URL = `${DOMAIN}${LOGO_PATH}`;
 
 class PDFGenerator {
+  // Puppeteer otherwise calls mkdtemp in os.tmpdir(). On this Windows service
+  // that path is the 8.3 name C:\Users\ADMINI~1\AppData\Local\Temp\1, and
+  // Node fails it with EPERM. A long path under the app is writable.
+  static async launchBrowser() {
+    const profileRoot = path.join(process.cwd(), "uploads", "chrome-tmp");
+    await fs.ensureDir(profileRoot);
+    const userDataDir = await fs.mkdtemp(path.join(profileRoot, "profile-"));
+
+    const browser = await puppeteer.launch({
+      headless: true,
+      userDataDir,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+      ],
+    });
+
+    return { browser, userDataDir };
+  }
   // Utility function to format date time
   static formatDateTime(date) {
     return date.toLocaleString("en-GB", {
@@ -61,6 +82,8 @@ class PDFGenerator {
   }
 
   static async generateTicket(data) {
+    let browser;
+    let userDataDir;
     try {
       const templatePath = path.join(__dirname, "../view/ticket.ejs");
       const templateContent = await fs.readFile(templatePath, "utf-8");
@@ -105,10 +128,7 @@ class PDFGenerator {
       await fs.ensureDir(path.join("uploads", "tickets"));
 
       // Generate PDF
-      const browser = await puppeteer.launch({
-        headless: "new",
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      });
+      ({ browser, userDataDir } = await this.launchBrowser());
       const page = await browser.newPage();
       await page.setContent(html, {
         waitUntil: "networkidle0",
@@ -127,8 +147,6 @@ class PDFGenerator {
         printBackground: true,
       });
 
-      await browser.close();
-
       return {
         absolutePath,
         relativePath,
@@ -137,10 +155,15 @@ class PDFGenerator {
     } catch (error) {
       console.error("Error generating ticket:", error);
       throw error;
+    } finally {
+      if (browser) await browser.close().catch(() => {});
+      if (userDataDir) await fs.remove(userDataDir).catch(() => {});
     }
   }
 
   static async generateDepartmentTicket(data) {
+    let browser;
+    let userDataDir;
     try {
       const templatePath = path.join(__dirname, "../view/departmentTicket.ejs");
       const templateContent = await fs.readFile(templatePath, "utf-8");
@@ -207,10 +230,7 @@ class PDFGenerator {
       await fs.ensureDir(path.join("uploads", "tickets"));
 
       // Generate PDF
-      const browser = await puppeteer.launch({
-        headless: "new",
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      });
+      ({ browser, userDataDir } = await this.launchBrowser());
       const page = await browser.newPage();
       await page.setContent(html, {
         waitUntil: "networkidle0",
@@ -229,8 +249,6 @@ class PDFGenerator {
         printBackground: true,
       });
 
-      await browser.close();
-
       return {
         absolutePath,
         relativePath,
@@ -240,6 +258,9 @@ class PDFGenerator {
     } catch (error) {
       console.error("Error generating department ticket:", error);
       throw error;
+    } finally {
+      if (browser) await browser.close().catch(() => {});
+      if (userDataDir) await fs.remove(userDataDir).catch(() => {});
     }
   }
 }
