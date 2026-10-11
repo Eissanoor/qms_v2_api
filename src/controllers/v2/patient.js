@@ -820,25 +820,6 @@ class PatientControllerV2 {
         throw new MyError("Patient not found", 404);
       }
 
-      // check if patient's active journey is ended or not for the current day
-      const activeJourney = await prisma.journey.findFirst({
-        where: {
-          patientId: id,
-          endTime: null,
-          createdAt: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)), // Start of today
-          },
-        },
-      });
-
-      if (activeJourney) {
-        return res
-          .status(400)
-          .json(
-            response(400, false, "Patient's active journey is not ended", null)
-          );
-      }
-
       // we will update the patient data, and reset the state to 0 (waiting), delete the ticket and barcode
       const result = await prisma.$transaction(async (tx) => {
         // assign default department (TRIAGE) to the patient
@@ -914,10 +895,10 @@ class PatientControllerV2 {
         const { relativePath, barcodeBase64 } =
           await PDFGenerator.generateTicket(pdfData);
 
-        // create journey and make old active journey inactive
+        // close any open journey, then start a new one for this visit
         await tx.journey.updateMany({
-          where: { patientId: id, isActive: true },
-          data: { isActive: false },
+          where: { patientId: id, endTime: null },
+          data: { isActive: false, endTime: new Date() },
         });
 
         await tx.journey.create({
