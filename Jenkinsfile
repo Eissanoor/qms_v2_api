@@ -37,14 +37,14 @@ pipeline {
                     }
                 }
                 echo "Deleting node_modules folder on windows..."
-                bat 'rmdir /s /q node_modules'
+                bat 'if exist node_modules rmdir /s /q node_modules'
                 echo "Deleting node_modules folder on windows... Done"
                 echo "Installing dependencies for QMS..."
                 bat 'npm install'
                 echo "Generating Prisma files..."
                 bat 'npx prisma generate --schema="./prisma/schema"'
                 echo "Restarting PM2 process..."
-                bat 'pm2 restart qms'
+                bat 'pm2 restart qms || pm2 start src/app.js --name qms'
                 echo "Restarting PM2 process... Done"
                 echo "Saving PM2 process..."
                 bat 'pm2 save'
