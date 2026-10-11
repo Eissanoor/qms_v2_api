@@ -75,7 +75,9 @@ class PDFGenerator {
   // Node fails it with EPERM. A long path under the app is writable.
   static async launchBrowser() {
     const profileRoot = path.join(process.cwd(), "uploads", "chrome-tmp");
+    const chromeHome = path.join(process.cwd(), "uploads", "chrome-home");
     await fs.ensureDir(profileRoot);
+    await fs.ensureDir(chromeHome);
     const userDataDir = await fs.mkdtemp(path.join(profileRoot, "profile-"));
     const executablePath = this.resolveChromeExecutable();
 
@@ -83,15 +85,51 @@ class PDFGenerator {
       headless: true,
       executablePath,
       userDataDir,
+      env: {
+        ...process.env,
+        HOME: chromeHome,
+        USERPROFILE: chromeHome,
+        TMP: chromeHome,
+        TEMP: chromeHome,
+      },
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
+        "--disable-software-rasterizer",
+        "--no-first-run",
+        "--disable-extensions",
+        "--disable-crash-reporter",
       ],
     });
 
     return { browser, userDataDir };
+  }
+
+  // page.pdf() reads the file through Chrome IO.read. That call fails on the
+  // Windows service with "Protocol error (IO.read): Read failed". Base64
+  // returns the PDF in the same response and does not use that stream.
+  static async writePdf(page, absolutePath) {
+    const client = await page.createCDPSession();
+    const result = await client.send("Page.printToPDF", {
+      transferMode: "ReturnAsBase64",
+      printBackground: true,
+      paperWidth: 80 / 25.4,
+      paperHeight: 150 / 25.4,
+      marginTop: 10 / 96,
+      marginBottom: 10 / 96,
+      marginLeft: 10 / 96,
+      marginRight: 10 / 96,
+      preferCSSPageSize: false,
+    });
+
+    if (!result?.data) {
+      throw new Error("Chrome did not return ticket PDF data");
+    }
+
+    await fs.writeFile(absolutePath, Buffer.from(result.data, "base64"));
+    await client.detach().catch(() => {});
   }
   // Utility function to format date time
   static formatDateTime(date) {
@@ -188,21 +226,9 @@ class PDFGenerator {
       ({ browser, userDataDir } = await this.launchBrowser());
       const page = await browser.newPage();
       await page.setContent(html, {
-        waitUntil: "networkidle0",
+        waitUntil: "domcontentloaded",
       });
-
-      await page.pdf({
-        path: absolutePath,
-        width: "80mm",
-        height: "150mm",
-        margin: {
-          top: "10px",
-          right: "10px",
-          bottom: "10px",
-          left: "10px",
-        },
-        printBackground: true,
-      });
+      await this.writePdf(page, absolutePath);
 
       return {
         absolutePath,
@@ -290,21 +316,9 @@ class PDFGenerator {
       ({ browser, userDataDir } = await this.launchBrowser());
       const page = await browser.newPage();
       await page.setContent(html, {
-        waitUntil: "networkidle0",
+        waitUntil: "domcontentloaded",
       });
-
-      await page.pdf({
-        path: absolutePath,
-        width: "80mm",
-        height: "150mm",
-        margin: {
-          top: "10px",
-          right: "10px",
-          bottom: "10px",
-          left: "10px",
-        },
-        printBackground: true,
-      });
+      await this.writePdf(page, absolutePath);
 
       return {
         absolutePath,
